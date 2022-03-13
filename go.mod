@@ -1,3 +1,5 @@
-module github.com/microsoft/vscode-remote-try-go
+module github.com/Soya-Onishi/api-server-go
 
 go 1.14
+
+require github.com/go-sql-driver/mysql v1.6.0
