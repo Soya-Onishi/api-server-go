@@ -1,23 +1,28 @@
 package main
 
 import (
-	"net/http"
+	"database/sql"
 
+	"github.com/Soya-Onishi/api-server-go/internal/controller"
+	"github.com/Soya-Onishi/api-server-go/internal/repository"
 	"github.com/gin-gonic/gin"
 )
 
-func HelloHandler(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Hello World",
-	})
-}
+func setupServer() *controller.Router {
+	var db *sql.DB
+	var err error
 
-func SetupServer() *gin.Engine {
-	r := gin.Default()
-	r.GET("/", HelloHandler)
-	return r
+	db, err = sql.Open("mysql", "")
+	if err != nil {
+		panic(err)
+	}
+
+	engine := gin.Default()
+	repo := repository.NewRepository(db)
+
+	return controller.NewRouter(engine, repo)
 }
 
 func main() {
-	SetupServer().Run()
+	setupServer().Run()
 }
