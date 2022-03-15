@@ -57,7 +57,7 @@ func TestHello(t *testing.T) {
 	}
 }
 
-func TestGetTodo(t *testing.T) {
+func TestGetAllTodos(t *testing.T) {
 	router, mock, err := setupMockServer()
 	assert.Nil(t, err)
 
