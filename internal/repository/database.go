@@ -1,6 +1,10 @@
 package repository
 
-import "database/sql"
+import (
+	"database/sql"
+	"log"
+	"os"
+)
 
 type Repository struct {
 	db *sql.DB
@@ -21,6 +25,10 @@ func NewRepository(db *sql.DB) *Repository {
 func (r *Repository) GetAllTodos() []TodoResponse {
 	rows, err := r.db.Query("SELECT * FROM todo_list ORDER BY id DESC")
 	if err != nil {
+		log.SetOutput(os.Stderr)
+		log.SetPrefix("[ERROR]")
+		log.Printf("%v", err)
+
 		return nil
 	}
 	defer rows.Close()

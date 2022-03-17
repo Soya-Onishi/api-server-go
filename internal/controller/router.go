@@ -45,6 +45,7 @@ func (r *Router) helloHandler(c *gin.Context) {
 func (r *Router) returnTodo(c *gin.Context) {
 	todos := r.repo.GetAllTodos()
 	if todos == nil {
+		c.AbortWithStatus(http.StatusServiceUnavailable)
 		return
 	}
 
