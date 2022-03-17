@@ -3,8 +3,8 @@ services:
   db:    
     container_name: api-server-db
     build: 
-      context: ./
-      dockerfile: ./db/Dockerfile
+      context: ./db
+      dockerfile: ./Dockerfile
     environment:
       MYSQL_ROOT_PASSWORD: root
     networks:
@@ -13,13 +13,13 @@ services:
   api-server-go:
     container_name: api-server-backend
     build:
-      context: ./
-      dockerfile: ./api-server/Dockerfile
+      context: ../
+      dockerfile: ./build/api-server/Dockerfile
     networks:
       api-server-network:
         ipv4_address: 172.25.172.2
     ports:
-      - "172.25.172.2:8080:8080"
+      - "8080:8080"
     depends_on:
       - db
 
