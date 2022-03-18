@@ -38,6 +38,10 @@
 			"onAutoForward": "notify"
 		}
 	},
+	
+	"mounts": [
+		"type=bind,source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh"
+	],
 
 	// Use 'otherPortsAttributes' to configure any ports that aren't configured using 'portsAttributes'.
 	// "otherPortsAttributes": {
