@@ -27,10 +27,12 @@ var initDBData = []TodoResponse{
 	},
 }
 
-func createRepository() *Repository {
+func init() {
 	dsn := fmt.Sprintf("%v:%v@(%v)/%v", "app", "app", "db.test", "todo")
 	txdb.Register("txdb", "mysql", dsn)
+}
 
+func createRepository() *Repository {
 	db, err := sql.Open("txdb", uuid.New().String())
 	if err != nil {
 		panic(err)
@@ -103,6 +105,20 @@ func TestDeleteTodo(t *testing.T) {
 			assert.Equal(t, expected[i].Name, todo.Name)
 		}
 	})
+
+	t.Run("delete non existance todo", func(t *testing.T) {
+		repo := createRepository()
+		defer repo.db.Close()
+
+		status := repo.DeleteTodo(4)
+		assert.Equal(t, http.StatusOK, status)
+
+		todos := repo.GetAllTodos()
+		assert.Equal(t, 3, len(todos))
+		for i, todo := range todos {
+			assert.Equal(t, initDBData[i].Name, todo.Name)
+		}
+	})
 }
 
 func TestUpdateTodo(t *testing.T) {
@@ -125,6 +141,24 @@ func TestUpdateTodo(t *testing.T) {
 		assert.Equal(t, 3, len(todos))
 		for i, todo := range todos[1:] {
 			assert.Equal(t, initDBData[1:][i].Name, todo.Name)
+		}
+	})
+
+	t.Run("update not existance todo", func(t *testing.T) {
+		rep := createRepository()
+		defer rep.db.Close()
+
+		updateTitle := "title updated"
+		status := rep.UpdateTodo(4, TodoResponse{
+			Id:   4,
+			Name: updateTitle,
+		})
+
+		assert.Equal(t, http.StatusOK, status)
+
+		todos := rep.GetAllTodos()
+		for i, todo := range todos {
+			assert.Equal(t, initDBData[i].Name, todo.Name)
 		}
 	})
 }
