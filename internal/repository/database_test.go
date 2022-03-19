@@ -85,3 +85,22 @@ func TestPostTodo(t *testing.T) {
 		assert.Equal(t, expectTodos[i].Name, actualTodos[i].Name)
 	}
 }
+
+func TestDeleteTodo(t *testing.T) {
+	t.Run("delete existance todo", func(t *testing.T) {
+		rep := createRepository()
+		defer rep.db.Close()
+
+		status := rep.DeleteTodo(1)
+		assert.Equal(t, status, http.StatusOK)
+
+		expected := initDBData[1:]
+
+		todos := rep.GetAllTodos()
+		assert.NotNil(t, todos)
+		assert.Equal(t, 2, len(todos))
+		for i, todo := range todos {
+			assert.Equal(t, expected[i].Name, todo.Name)
+		}
+	})
+}

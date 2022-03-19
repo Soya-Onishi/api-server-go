@@ -79,3 +79,33 @@ func (r *Repository) PostTodo(todo TodoResponse) int {
 
 	return http.StatusOK
 }
+
+func (r *Repository) DeleteTodo(id uint) int {
+	tx, err := r.db.Begin()
+	defer func() {
+		switch err {
+		case nil:
+			tx.Commit()
+		default:
+			tx.Rollback()
+		}
+	}()
+
+	if err != nil {
+		log.SetOutput(os.Stderr)
+		log.SetPrefix("[ERROR]")
+		log.Printf("%v", err)
+
+		return http.StatusInternalServerError
+	}
+
+	if _, err := r.db.Exec("DELETE FROM todo.todo_list WHERE id = ?", id); err != nil {
+		log.SetOutput(os.Stderr)
+		log.SetPrefix("[ERROR]")
+		log.Printf("%v", err)
+
+		return http.StatusInternalServerError
+	}
+
+	return http.StatusOK
+}
