@@ -1,0 +1,36 @@
+version: '3'
+services:
+  development:
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    cap_add: 
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+    volumes:
+      - type: bind
+        source: $PWD
+        target: /workspace/api-server
+      - type: bind
+        source: $HOME/.ssh
+        target: /home/vscode/.ssh
+    command: sleep infinity
+    networks:
+      api-server-test:
+    depends_on:
+      - db      
+  db:
+    build:
+      context: ../build/db/
+      dockerfile: ./Dockerfile
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    hostname: db.test
+    networks:
+      api-server-test:
+        aliases:
+          - db.test    
+networks:
+  api-server-test:
+    
