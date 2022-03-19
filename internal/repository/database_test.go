@@ -1,55 +1,87 @@
 package repository
 
 import (
+	"database/sql"
+	"fmt"
+	"net/http"
 	"testing"
 
-	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/DATA-DOG/go-txdb"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
-func createMockDB() (*Repository, sqlmock.Sqlmock) {
-	db, mock, err := sqlmock.New()
+var initDBData = []TodoResponse{
+	{
+		Id:   1,
+		Name: "prepare hot water",
+	},
+	{
+		Id:   2,
+		Name: "wait for three minutes",
+	},
+	{
+		Id:   3,
+		Name: "eat ramen",
+	},
+}
+
+func createRepository() *Repository {
+	dsn := fmt.Sprintf("%v:%v@(%v)/%v", "app", "app", "db.test", "todo")
+	txdb.Register("txdb", "mysql", dsn)
+
+	db, err := sql.Open("txdb", uuid.New().String())
 	if err != nil {
 		panic(err)
 	}
 
-	rep := NewRepository(db)
+	repo := NewRepository(db)
 
-	return rep, mock
+	return repo
 }
 
 func TestGetAllTodos(t *testing.T) {
-	rep, mock := createMockDB()
+	rep := createRepository()
+	defer rep.db.Close()
 
-	todos := []TodoResponse{
-		{
-			Id:   1,
-			Name: "prepare hot water",
-		},
-		{
-			Id:   2,
-			Name: "wait for three minutes",
-		},
-		{
-			Id:   3,
-			Name: "eat ramen",
-		},
-	}
-
-	rows := mock.NewRows([]string{"id", "name"})
-	for _, todo := range todos {
-		rows.AddRow(todo.Id, todo.Name)
-	}
-
-	mock.ExpectQuery("SELECT \\* FROM todo_list ORDER BY id DESC").
-		WillReturnRows(rows)
-
+	expectTodos := initDBData
 	actualTodos := rep.GetAllTodos()
 
-	assert.NotNil(t, todos)
-	assert.Equal(t, len(todos), len(actualTodos))
-	for i := range todos {
-		assert.Equal(t, todos[i].Id, actualTodos[i].Id)
-		assert.Equal(t, todos[i].Name, actualTodos[i].Name)
+	assert.Equal(t, len(expectTodos), len(actualTodos))
+	for i := range expectTodos {
+		assert.Equal(t, expectTodos[i].Id, actualTodos[i].Id)
+		assert.Equal(t, expectTodos[i].Name, actualTodos[i].Name)
+	}
+}
+
+func TestPostTodo(t *testing.T) {
+	rep := createRepository()
+	defer rep.db.Close()
+
+	postTodos := []TodoResponse{
+		{
+			Id:   0,
+			Name: "power on",
+		},
+		{
+			Id:   0,
+			Name: "erase directory",
+		},
+	}
+
+	expectTodos := append(initDBData, postTodos...)
+
+	for _, todo := range postTodos {
+		status := rep.PostTodo(todo)
+		assert.Equal(t, status, http.StatusOK)
+	}
+
+	actualTodos := rep.GetAllTodos()
+	assert.NotNil(t, actualTodos)
+
+	assert.Equal(t, len(expectTodos), len(actualTodos))
+	for i := range expectTodos {
+		assert.Equal(t, expectTodos[i].Name, actualTodos[i].Name)
 	}
 }

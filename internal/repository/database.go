@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"log"
+	"net/http"
 	"os"
 )
 
@@ -23,7 +24,7 @@ func NewRepository(db *sql.DB) *Repository {
 }
 
 func (r *Repository) GetAllTodos() []TodoResponse {
-	rows, err := r.db.Query("SELECT * FROM todo_list ORDER BY id DESC")
+	rows, err := r.db.Query("SELECT * FROM todo_list ORDER BY id")
 	if err != nil {
 		log.SetOutput(os.Stderr)
 		log.SetPrefix("[ERROR]")
@@ -47,4 +48,34 @@ func (r *Repository) GetAllTodos() []TodoResponse {
 	}
 
 	return resp
+}
+
+func (r *Repository) PostTodo(todo TodoResponse) int {
+	tx, err := r.db.Begin()
+	defer func() {
+		switch err {
+		case nil:
+			tx.Commit()
+		default:
+			tx.Rollback()
+		}
+	}()
+
+	if err != nil {
+		log.SetOutput(os.Stderr)
+		log.SetPrefix("[ERROR]")
+		log.Printf("%v", err)
+
+		return http.StatusInternalServerError
+	}
+
+	if _, err := tx.Exec("INSERT INTO todo.todo_list (title) VALUES(?)", todo.Name); err != nil {
+		log.SetOutput(os.Stderr)
+		log.SetPrefix("[ERROR]")
+		log.Printf("%v", err)
+
+		return http.StatusInternalServerError
+	}
+
+	return http.StatusOK
 }
