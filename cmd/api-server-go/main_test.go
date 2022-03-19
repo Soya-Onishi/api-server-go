@@ -10,11 +10,17 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/DATA-DOG/go-txdb"
 	"github.com/Soya-Onishi/api-server-go/internal/controller"
 	"github.com/Soya-Onishi/api-server-go/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
+
+func init() {
+	dsn := fmt.Sprintf("%v:%v@(%v)/%v", "app", "app", "db.test", "todo")
+	txdb.Register("txdb", "mysql", dsn)
+}
 
 func setupMockServer() (*controller.Router, sqlmock.Sqlmock, error) {
 	var db *sql.DB

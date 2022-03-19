@@ -11,6 +11,13 @@ type Repository struct {
 	db *sql.DB
 }
 
+type TodoListManipulation interface {
+	GetAllTodos() []TodoResponse
+	PostTodo(todo TodoResponse) int
+	DeleteTodo(id uint) int
+	UpdateTodo(id int, todo TodoResponse) int
+}
+
 type TodoResponse struct {
 	Id   int
 	Name string

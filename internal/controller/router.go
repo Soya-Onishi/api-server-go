@@ -10,10 +10,10 @@ import (
 
 type Router struct {
 	engine *gin.Engine
-	repo   *repository.Repository
+	repo   repository.TodoListManipulation
 }
 
-func NewRouter(engine *gin.Engine, repo *repository.Repository) *Router {
+func NewRouter(engine *gin.Engine, repo repository.TodoListManipulation) *Router {
 	r := new(Router)
 	r.engine = engine
 	r.repo = repo
