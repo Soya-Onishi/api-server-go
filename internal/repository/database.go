@@ -23,6 +23,36 @@ func NewRepository(db *sql.DB) *Repository {
 	return r
 }
 
+func (r *Repository) beginTx(f func() error) int {
+	tx, err := r.db.Begin()
+	defer func() {
+		switch err {
+		case nil:
+			tx.Commit()
+		default:
+			tx.Rollback()
+		}
+	}()
+
+	if err != nil {
+		log.SetOutput(os.Stderr)
+		log.SetPrefix("[ERROR]")
+		log.Printf("%v", err)
+
+		return http.StatusInternalServerError
+	}
+
+	if err := f(); err != nil {
+		log.SetOutput(os.Stderr)
+		log.SetPrefix("[ERROR]")
+		log.Printf("%v", err)
+
+		return http.StatusInternalServerError
+	}
+
+	return http.StatusOK
+}
+
 func (r *Repository) GetAllTodos() []TodoResponse {
 	rows, err := r.db.Query("SELECT * FROM todo_list ORDER BY id")
 	if err != nil {
@@ -108,4 +138,14 @@ func (r *Repository) DeleteTodo(id uint) int {
 	}
 
 	return http.StatusOK
+}
+
+func (r *Repository) UpdateTodo(id int, todo TodoResponse) int {
+	return r.beginTx(func() error {
+		if _, err := r.db.Exec("UPDATE todo.todo_list SET title = ? WHERE id = ?", todo.Name, id); err != nil {
+			return err
+		}
+
+		return nil
+	})
 }

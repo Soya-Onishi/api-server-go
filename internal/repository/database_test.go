@@ -104,3 +104,27 @@ func TestDeleteTodo(t *testing.T) {
 		}
 	})
 }
+
+func TestUpdateTodo(t *testing.T) {
+	t.Run("update existance todo", func(t *testing.T) {
+		rep := createRepository()
+		defer rep.db.Close()
+
+		updatedTitle := "title updated"
+		status := rep.UpdateTodo(1, TodoResponse{
+			Id:   1,
+			Name: updatedTitle,
+		})
+
+		assert.Equal(t, http.StatusOK, status)
+
+		todos := rep.GetAllTodos()
+		assert.NotNil(t, todos)
+		assert.Equal(t, todos[0].Name, updatedTitle)
+
+		assert.Equal(t, 3, len(todos))
+		for i, todo := range todos[1:] {
+			assert.Equal(t, initDBData[1:][i].Name, todo.Name)
+		}
+	})
+}
