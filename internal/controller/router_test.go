@@ -76,8 +76,14 @@ var initDBData = []repository.TodoResponse{
 }
 
 func setupMock() *Router {
+	data := make([]repository.TodoResponse, len(initDBData))
+	for i, todo := range initDBData {
+		data[i].Id = todo.Id
+		data[i].Name = todo.Name
+	}
+
 	mock := RepositoryMock{
-		todos: initDBData,
+		todos: data,
 	}
 
 	return NewRouter(gin.Default(), &mock)
@@ -85,6 +91,23 @@ func setupMock() *Router {
 
 func post(url string, content func() []byte) (*http.Response, error) {
 	return nil, nil
+}
+
+func getTodo(ts *httptest.Server) []map[string]string {
+	resp, err := http.Get(fmt.Sprintf("%v/todos", ts.URL))
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+
+	var respData []map[string]string
+	respBytes, _ := ioutil.ReadAll(resp.Body)
+	err = json.Unmarshal(respBytes, &respData)
+	if err != nil {
+		panic(err)
+	}
+
+	return respData
 }
 
 func TestRouteGetAllTodo(t *testing.T) {
@@ -218,5 +241,88 @@ func TestPostTodo(t *testing.T) {
 		}
 
 		assert.Equal(t, http.StatusBadRequest, post(t, ts, body))
+	})
+}
+
+func TestDeleteTodo(t *testing.T) {
+	runTest := func(f func(*httptest.Server)) {
+		router := setupMock()
+		ts := httptest.NewServer(router.engine)
+		defer ts.Close()
+
+		f(ts)
+	}
+
+	url := func(ts *httptest.Server) string {
+		return fmt.Sprintf("%v/todos", ts.URL)
+	}
+
+	ids := []int{1, 2}
+
+	for _, id := range ids {
+		testTitle := fmt.Sprintf("delete todo via existance todo id[%v]", id)
+		t.Run(testTitle, func(t *testing.T) {
+			runTest(func(ts *httptest.Server) {
+				req, err := http.NewRequest(
+					http.MethodDelete,
+					fmt.Sprintf("%v?id=%v", url(ts), id),
+					bytes.NewBuffer(make([]byte, 0)),
+				)
+				if err != nil {
+					panic(err)
+				}
+
+				client := &http.Client{}
+				resp, err := client.Do(req)
+				assert.Nil(t, err)
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+				todos := getTodo(ts)
+				assert.Equal(t, 2, len(todos))
+
+				expect := make([]repository.TodoResponse, 0)
+				expect = append(expect, initDBData[:id-1]...)
+				expect = append(expect, initDBData[id:]...)
+				for i, todo := range todos {
+					assert.Equal(t, expect[i].Name, todo["name"])
+				}
+			})
+		})
+	}
+
+	t.Run("Delete with no id cause error", func(t *testing.T) {
+		runTest(func(ts *httptest.Server) {
+			req, err := http.NewRequest(
+				http.MethodDelete,
+				fmt.Sprintf("%v", url(ts)),
+				bytes.NewBuffer(make([]byte, 0)),
+			)
+			if err != nil {
+				panic(err)
+			}
+
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			assert.Nil(t, err)
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		})
+	})
+
+	t.Run("invalid id query, not number", func(t *testing.T) {
+		runTest(func(ts *httptest.Server) {
+			req, err := http.NewRequest(
+				http.MethodDelete,
+				fmt.Sprintf("%v?id=abc", url(ts)),
+				bytes.NewBuffer(make([]byte, 0)),
+			)
+			if err != nil {
+				panic(err)
+			}
+
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			assert.Nil(t, err)
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		})
 	})
 }

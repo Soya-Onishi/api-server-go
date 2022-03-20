@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -39,6 +40,7 @@ func (r *Router) setRouter(e *gin.Engine) {
 	e.GET("/", r.helloHandler)
 	e.GET("/todos", r.returnTodo)
 	e.POST("/todos", r.postTodo)
+	e.DELETE("/todos", r.deleteTodo)
 }
 
 func (r *Router) helloHandler(c *gin.Context) {
@@ -67,31 +69,31 @@ func (r *Router) returnTodo(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func errorHandling(err error, c *gin.Context) {
+	log.SetOutput(os.Stderr)
+	log.SetPrefix("[ERROR]")
+	log.Printf("%v", err)
+
+	c.AbortWithStatus(http.StatusBadRequest)
+}
+
 func (r *Router) postTodo(c *gin.Context) {
-	errorHandling := func(err error) {
-		log.SetOutput(os.Stderr)
-		log.SetPrefix("[ERROR]")
-		log.Printf("%v", err)
-
-		c.AbortWithStatus(http.StatusBadRequest)
-	}
-
 	var reqBody map[string]string
 	reqBytes, err := ioutil.ReadAll(c.Request.Body)
 
 	if err != nil {
-		errorHandling(err)
+		errorHandling(err, c)
 		return
 	}
 
 	if err := json.Unmarshal(reqBytes, &reqBody); err != nil {
-		errorHandling(err)
+		errorHandling(err, c)
 		return
 	}
 
 	id, err := strconv.Atoi(reqBody["id"])
 	if err != nil {
-		errorHandling(err)
+		errorHandling(err, c)
 		return
 	}
 
@@ -109,4 +111,22 @@ func (r *Router) postTodo(c *gin.Context) {
 	status := r.repo.PostTodo(todo)
 
 	c.JSON(status, map[string]string{})
+}
+
+func (r *Router) deleteTodo(c *gin.Context) {
+	idString, ok := c.GetQuery("id")
+	if !ok {
+		errorHandling(errors.New("query id does not exists"), c)
+		return
+	}
+
+	id, err := strconv.Atoi(idString)
+	if err != nil {
+		errorHandling(err, c)
+		return
+	}
+
+	r.repo.DeleteTodo(uint(id))
+
+	c.JSON(http.StatusOK, map[string]string{})
 }
