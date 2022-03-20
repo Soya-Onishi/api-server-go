@@ -44,7 +44,7 @@ func (r *RepositoryMock) DeleteTodo(id uint) int {
 	return http.StatusOK
 }
 
-func (r *RepositoryMock) UpdateTodo(id int, todo repository.TodoResponse) int {
+func (r *RepositoryMock) UpdateTodo(id int, todo repository.TodoUpdater) int {
 	var idx int = -1
 	for i, todo := range r.todos {
 		if todo.Id == id {
@@ -53,8 +53,10 @@ func (r *RepositoryMock) UpdateTodo(id int, todo repository.TodoResponse) int {
 		}
 	}
 
-	if idx != 1 {
-		r.todos[idx] = todo
+	if idx != -1 {
+		if todo.Name.Updatable {
+			r.todos[idx].Name = todo.Name.Value
+		}
 	}
 
 	return http.StatusOK
@@ -323,6 +325,105 @@ func TestDeleteTodo(t *testing.T) {
 			resp, err := client.Do(req)
 			assert.Nil(t, err)
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		})
+	})
+}
+
+func TestUpdateTodo(t *testing.T) {
+	runTest := func(f func(*httptest.Server)) {
+		router := setupMock()
+		ts := httptest.NewServer(router.engine)
+		defer ts.Close()
+
+		f(ts)
+	}
+
+	update := func(url string, body []byte) (*http.Response, error) {
+		req, err := http.NewRequest(
+			http.MethodPatch,
+			url,
+			bytes.NewBuffer(body),
+		)
+		if err != nil {
+			panic(err)
+		}
+
+		client := &http.Client{}
+		return client.Do(req)
+	}
+
+	newName := "todo updated"
+	for _, id := range []int{1, 2} {
+		title := fmt.Sprintf("update todo at id[%v]", id)
+		t.Run(title, func(t *testing.T) {
+			runTest(func(ts *httptest.Server) {
+				todo, err := json.Marshal(map[string]string{
+					"name": newName,
+				})
+				if err != nil {
+					panic(err)
+				}
+
+				resp, err := update(fmt.Sprintf("%v/todos?id=%v", ts.URL, id), todo)
+				assert.Nil(t, err)
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+				todos := getTodo(ts)
+				assert.Equal(t, newName, todos[id-1]["name"])
+			})
+		})
+	}
+
+	t.Run("update todo without id cause error", func(t *testing.T) {
+		runTest(func(ts *httptest.Server) {
+			todo, err := json.Marshal(map[string]string{
+				"name": newName,
+			})
+			if err != nil {
+				panic(err)
+			}
+			resp, err := update(fmt.Sprintf("%v/todos", ts.URL), todo)
+			assert.Nil(t, err)
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+			todos := getTodo(ts)
+			assert.Equal(t, len(initDBData), len(todos))
+			for i, todo := range todos {
+				assert.Equal(t, initDBData[i].Name, todo["name"])
+			}
+		})
+	})
+
+	t.Run("update todo with invalid id query", func(t *testing.T) {
+		runTest(func(ts *httptest.Server) {
+			todo, err := json.Marshal(map[string]string{
+				"name": newName,
+			})
+			if err != nil {
+				panic(err)
+			}
+			resp, err := update(fmt.Sprintf("%v/todos?id=%v", ts.URL, "abc"), todo)
+			assert.Nil(t, err)
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+			todos := getTodo(ts)
+			assert.Equal(t, len(initDBData), len(todos))
+			for i, todo := range todos {
+				assert.Equal(t, initDBData[i].Name, todo["name"])
+			}
+		})
+	})
+
+	t.Run("update todo without anything json data cause no effect", func(t *testing.T) {
+		runTest(func(ts *httptest.Server) {
+			resp, err := update(fmt.Sprintf("%v/todos?id=%v", ts.URL, 1), make([]byte, 0))
+			assert.Nil(t, err)
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+			todos := getTodo(ts)
+			assert.Equal(t, len(initDBData), len(todos))
+			for i, todo := range todos {
+				assert.Equal(t, initDBData[i].Name, todo["name"])
+			}
 		})
 	})
 }

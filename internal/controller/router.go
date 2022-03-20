@@ -41,6 +41,7 @@ func (r *Router) setRouter(e *gin.Engine) {
 	e.GET("/todos", r.returnTodo)
 	e.POST("/todos", r.postTodo)
 	e.DELETE("/todos", r.deleteTodo)
+	e.PATCH("/todos", r.updateTodo)
 }
 
 func (r *Router) helloHandler(c *gin.Context) {
@@ -113,6 +114,20 @@ func (r *Router) postTodo(c *gin.Context) {
 	c.JSON(status, map[string]string{})
 }
 
+func getQueryID(c *gin.Context) (int, error) {
+	idString, ok := c.GetQuery("id")
+	if !ok {
+		return -1, errors.New("query id does not exists")
+	}
+
+	id, err := strconv.Atoi(idString)
+	if err != nil {
+		return -1, err
+	}
+
+	return id, nil
+}
+
 func (r *Router) deleteTodo(c *gin.Context) {
 	idString, ok := c.GetQuery("id")
 	if !ok {
@@ -129,4 +144,27 @@ func (r *Router) deleteTodo(c *gin.Context) {
 	r.repo.DeleteTodo(uint(id))
 
 	c.JSON(http.StatusOK, map[string]string{})
+}
+
+func (r *Router) updateTodo(c *gin.Context) {
+	id, err := getQueryID(c)
+	if err != nil {
+		errorHandling(err, c)
+		return
+	}
+
+	bodyBytes, _ := ioutil.ReadAll(c.Request.Body)
+	var body map[string]string
+	json.Unmarshal(bodyBytes, &body)
+
+	title, okTitle := body["name"]
+	todo := repository.TodoUpdater{
+		Id: id,
+		Name: repository.Updatable[string]{
+			Updatable: okTitle,
+			Value:     title,
+		},
+	}
+
+	r.repo.UpdateTodo(id, todo)
 }

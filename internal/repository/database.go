@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -15,12 +16,21 @@ type TodoListManipulation interface {
 	GetAllTodos() []TodoResponse
 	PostTodo(todo TodoResponse) int
 	DeleteTodo(id uint) int
-	UpdateTodo(id int, todo TodoResponse) int
+	UpdateTodo(id int, todo TodoUpdater) int
 }
 
 type TodoResponse struct {
 	Id   int
 	Name string
+}
+
+type Updatable[T any] struct {
+	Updatable bool
+	Value     T
+}
+type TodoUpdater struct {
+	Id   int
+	Name Updatable[string]
 }
 
 func NewRepository(db *sql.DB) *Repository {
@@ -147,12 +157,32 @@ func (r *Repository) DeleteTodo(id uint) int {
 	return http.StatusOK
 }
 
-func (r *Repository) UpdateTodo(id int, todo TodoResponse) int {
-	return r.beginTx(func() error {
-		if _, err := r.db.Exec("UPDATE todo.todo_list SET title = ? WHERE id = ?", todo.Name, id); err != nil {
-			return err
-		}
+func (r *Repository) UpdateTodo(id int, todo TodoUpdater) int {
+	var namePart string
+	if todo.Name.Updatable {
+		namePart = fmt.Sprintf("title = '%v'", todo.Name.Value)
+	} else {
+		namePart = ""
+	}
 
-		return nil
-	})
+	doUpdate := false
+	for _, update := range []bool{todo.Name.Updatable} {
+		if update {
+			doUpdate = true
+		}
+	}
+
+	if doUpdate {
+		sql := fmt.Sprintf("UPDATE todo.todo_list SET %v WHERE id = %v", namePart, id)
+		return r.beginTx(func() error {
+			if _, err := r.db.Exec(sql); err != nil {
+				return err
+			}
+
+			return nil
+		})
+	} else {
+		return http.StatusOK
+	}
+
 }

@@ -127,9 +127,12 @@ func TestUpdateTodo(t *testing.T) {
 		defer rep.db.Close()
 
 		updatedTitle := "title updated"
-		status := rep.UpdateTodo(1, TodoResponse{
-			Id:   1,
-			Name: updatedTitle,
+		status := rep.UpdateTodo(1, TodoUpdater{
+			Id: 1,
+			Name: Updatable[string]{
+				Updatable: true,
+				Value:     updatedTitle,
+			},
 		})
 
 		assert.Equal(t, http.StatusOK, status)
@@ -149,9 +152,12 @@ func TestUpdateTodo(t *testing.T) {
 		defer rep.db.Close()
 
 		updateTitle := "title updated"
-		status := rep.UpdateTodo(4, TodoResponse{
-			Id:   4,
-			Name: updateTitle,
+		status := rep.UpdateTodo(4, TodoUpdater{
+			Id: 4,
+			Name: Updatable[string]{
+				Updatable: true,
+				Value:     updateTitle,
+			},
 		})
 
 		assert.Equal(t, http.StatusOK, status)
@@ -160,5 +166,43 @@ func TestUpdateTodo(t *testing.T) {
 		for i, todo := range todos {
 			assert.Equal(t, initDBData[i].Name, todo.Name)
 		}
+	})
+
+	t.Run("no update cause no effect", func(t *testing.T) {
+		rep := createRepository()
+		defer rep.db.Close()
+
+		status := rep.UpdateTodo(1, TodoUpdater{
+			Id: 1,
+			Name: Updatable[string]{
+				Updatable: false,
+				Value:     "",
+			},
+		})
+
+		assert.Equal(t, http.StatusOK, status)
+
+		todos := rep.GetAllTodos()
+		for i, todo := range todos {
+			assert.Equal(t, initDBData[i].Name, todo.Name)
+		}
+	})
+
+	t.Run("update to empty string", func(t *testing.T) {
+		rep := createRepository()
+		defer rep.db.Close()
+
+		status := rep.UpdateTodo(1, TodoUpdater{
+			Id: 1,
+			Name: Updatable[string]{
+				Updatable: true,
+				Value:     "",
+			},
+		})
+
+		assert.Equal(t, http.StatusOK, status)
+
+		todos := rep.GetAllTodos()
+		assert.Equal(t, "", todos[0].Name)
 	})
 }
