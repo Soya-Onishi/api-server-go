@@ -221,3 +221,28 @@ func (r *Repository) GetUserInfo(username string) (*UserInfo, int) {
 
 	return &info, http.StatusOK
 }
+
+func (r *Repository) GetSessionHash(username string) (*string, int) {
+	rows, err := r.db.Query(
+		"SELECT session_hash FROM auth.users WHERE username=?",
+		username,
+	)
+
+	if err != nil {
+		log.Print(err)
+		return nil, http.StatusUnauthorized
+	}
+
+	if !rows.Next() {
+		log.Print(err)
+		return nil, http.StatusUnauthorized
+	}
+
+	var sessionHash sql.NullString
+	if err := rows.Scan(&sessionHash); err != nil {
+		log.Print(err)
+		return nil, http.StatusUnauthorized
+	}
+
+	return &sessionHash.String, http.StatusOK
+}

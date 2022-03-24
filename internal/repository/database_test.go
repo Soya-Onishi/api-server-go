@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"crypto/sha256"
 
@@ -228,6 +229,42 @@ func TestGetUserInfo(t *testing.T) {
 		userInfo, status := rep.GetUserInfo("Unknown")
 
 		assert.Nil(t, userInfo)
+		assert.Equal(t, http.StatusUnauthorized, status)
+	})
+}
+
+func TestGetSessionHash(t *testing.T) {
+	t.Run("get session hash by valid username", func(t *testing.T) {
+		rep := createRepository()
+		defer rep.db.Close()
+
+		hashSeed := fmt.Sprintf("%08x/%v", uint64(time.Now().Unix()), "Taro")
+		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(hashSeed)))
+		rep.db.Exec("UPDATE auth.users SET session_hash=? WHERE username='Taro'", hash)
+
+		sessionHash, status := rep.GetSessionHash("Taro")
+
+		assert.Equal(t, hash, *sessionHash)
+		assert.Equal(t, http.StatusOK, status)
+	})
+
+	t.Run("get session but NULL", func(t *testing.T) {
+		rep := createRepository()
+		defer rep.db.Close()
+
+		sessionHash, status := rep.GetSessionHash("Taro")
+
+		assert.Equal(t, "", *sessionHash)
+		assert.Equal(t, http.StatusOK, status)
+	})
+
+	t.Run("get session hash by invalid username", func(t *testing.T) {
+		rep := createRepository()
+		defer rep.db.Close()
+
+		sessionHash, status := rep.GetSessionHash("Unknown")
+
+		assert.Nil(t, sessionHash)
 		assert.Equal(t, http.StatusUnauthorized, status)
 	})
 }
