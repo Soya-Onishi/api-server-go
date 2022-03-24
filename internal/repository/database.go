@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"net/http"
@@ -31,6 +32,11 @@ type Updatable[T any] struct {
 type TodoUpdater struct {
 	Id   int
 	Name Updatable[string]
+}
+
+type UserInfo struct {
+	Username       string
+	HashedPassword *[32]byte
 }
 
 func NewRepository(db *sql.DB) *Repository {
@@ -185,4 +191,33 @@ func (r *Repository) UpdateTodo(id int, todo TodoUpdater) int {
 		return http.StatusOK
 	}
 
+}
+
+func (r *Repository) GetUserInfo(username string) (*UserInfo, int) {
+	sql := fmt.Sprintf("SELECT username, passwd FROM auth.users WHERE username=?;")
+	rows, err := r.db.Query(sql, username)
+	if err != nil {
+		return nil, http.StatusUnauthorized
+	}
+
+	if !rows.Next() {
+		return nil, http.StatusUnauthorized
+	}
+
+	var user, password string
+	if err := rows.Scan(&user, &password); err != nil {
+		return nil, http.StatusUnauthorized
+	}
+
+	hashedPassword, err := hex.DecodeString(password)
+	if err != nil {
+		return nil, http.StatusUnauthorized
+	}
+
+	info := UserInfo{
+		Username:       user,
+		HashedPassword: (*[32]byte)(hashedPassword),
+	}
+
+	return &info, http.StatusOK
 }

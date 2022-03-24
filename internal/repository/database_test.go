@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"testing"
 
+	"crypto/sha256"
+
 	"github.com/DATA-DOG/go-txdb"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
@@ -204,5 +206,28 @@ func TestUpdateTodo(t *testing.T) {
 
 		todos := rep.GetAllTodos()
 		assert.Equal(t, "", todos[0].Name)
+	})
+}
+
+func TestGetUserInfo(t *testing.T) {
+	t.Run("get user info by valid username", func(t *testing.T) {
+		rep := createRepository()
+		defer rep.db.Close()
+
+		userInfo, status := rep.GetUserInfo("Taro")
+
+		assert.Equal(t, http.StatusOK, status)
+		assert.Equal(t, "Taro", userInfo.Username)
+		assert.Equal(t, sha256.Sum256([]byte("Taro")), *userInfo.HashedPassword)
+	})
+
+	t.Run("get user info by invalid username", func(t *testing.T) {
+		rep := createRepository()
+		defer rep.db.Close()
+
+		userInfo, status := rep.GetUserInfo("Unknown")
+
+		assert.Nil(t, userInfo)
+		assert.Equal(t, http.StatusUnauthorized, status)
 	})
 }

@@ -3,5 +3,5 @@ CREATE DATABASE IF NOT EXISTS auth;
 CREATE TABLE IF NOT EXISTS auth.users (  
   username    VARCHAR(64) NOT NULL PRIMARY KEY,
   passwd      VARCHAR(64) NOT NULL,
-  session_hash VARCHAR(64),
+  session_hash VARCHAR(64)
 );
