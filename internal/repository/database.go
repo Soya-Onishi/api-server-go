@@ -18,6 +18,9 @@ type TodoListManipulation interface {
 	PostTodo(todo TodoResponse) int
 	DeleteTodo(id uint) int
 	UpdateTodo(id int, todo TodoUpdater) int
+	GetUserInfo(username string) (*UserInfo, int)
+	GetSessionHash(username string) (*[32]byte, int)
+	SetSessionHash(username string, hash [32]byte) int
 }
 
 type TodoResponse struct {
@@ -222,7 +225,7 @@ func (r *Repository) GetUserInfo(username string) (*UserInfo, int) {
 	return &info, http.StatusOK
 }
 
-func (r *Repository) GetSessionHash(username string) (*string, int) {
+func (r *Repository) GetSessionHash(username string) (*[32]byte, int) {
 	rows, err := r.db.Query(
 		"SELECT session_hash FROM auth.users WHERE username=?",
 		username,
@@ -243,6 +246,23 @@ func (r *Repository) GetSessionHash(username string) (*string, int) {
 		log.Print(err)
 		return nil, http.StatusUnauthorized
 	}
+	if sessionHash.String == "" {
+		return nil, http.StatusOK
+	} else {
+		hash, _ := hex.DecodeString(sessionHash.String)
+		return (*[32]byte)(hash), http.StatusOK
+	}
+}
 
-	return &sessionHash.String, http.StatusOK
+func (r *Repository) SetSessionHash(username string, hash [32]byte) int {
+	return r.beginTx(func() error {
+		sessionHash := hex.EncodeToString(hash[:])
+		_, err := r.db.Exec(
+			"UPDATE auth.users SET session_hash = ? WHERE username = ?",
+			sessionHash,
+			username,
+		)
+
+		return err
+	})
 }

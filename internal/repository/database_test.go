@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"testing"
@@ -239,12 +240,14 @@ func TestGetSessionHash(t *testing.T) {
 		defer rep.db.Close()
 
 		hashSeed := fmt.Sprintf("%08x/%v", uint64(time.Now().Unix()), "Taro")
-		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(hashSeed)))
+		hashExpect := sha256.Sum256([]byte(hashSeed))
+		hash := fmt.Sprintf("%x", hashExpect)
 		rep.db.Exec("UPDATE auth.users SET session_hash=? WHERE username='Taro'", hash)
 
-		sessionHash, status := rep.GetSessionHash("Taro")
+		hashActual, status := rep.GetSessionHash("Taro")
 
-		assert.Equal(t, hash, *sessionHash)
+		assert.NotNil(t, hashActual)
+		assert.Equal(t, hashExpect, *hashActual)
 		assert.Equal(t, http.StatusOK, status)
 	})
 
@@ -254,7 +257,7 @@ func TestGetSessionHash(t *testing.T) {
 
 		sessionHash, status := rep.GetSessionHash("Taro")
 
-		assert.Equal(t, "", *sessionHash)
+		assert.Nil(t, sessionHash)
 		assert.Equal(t, http.StatusOK, status)
 	})
 
@@ -266,5 +269,34 @@ func TestGetSessionHash(t *testing.T) {
 
 		assert.Nil(t, sessionHash)
 		assert.Equal(t, http.StatusUnauthorized, status)
+	})
+}
+
+func TestSetSessionHash(t *testing.T) {
+	t.Run("set session hash by valid username", func(t *testing.T) {
+		rep := createRepository()
+		defer rep.db.Close()
+
+		hash := sha256.Sum256([]byte{1, 2, 3})
+		status := rep.SetSessionHash("Taro", hash)
+
+		assert.Equal(t, http.StatusOK, status)
+
+		rows, err := rep.db.Query("SELECT session_hash FROM auth.users WHERE username='Taro'")
+		if err != nil {
+			panic(err)
+		}
+
+		if !rows.Next() {
+			panic("returns no rows from db")
+		}
+
+		var hashString string
+		if err := rows.Scan(&hashString); err != nil {
+			panic(err)
+		}
+
+		actualHash, _ := hex.DecodeString(hashString)
+		assert.Equal(t, hash[:], actualHash)
 	})
 }

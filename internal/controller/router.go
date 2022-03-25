@@ -1,13 +1,16 @@
 package controller
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/Soya-Onishi/api-server-go/internal/repository"
 	"github.com/gin-gonic/gin"
@@ -42,6 +45,7 @@ func (r *Router) setRouter(e *gin.Engine) {
 	e.POST("/todos", r.postTodo)
 	e.DELETE("/todos", r.deleteTodo)
 	e.PATCH("/todos", r.updateTodo)
+	e.POST("/login", r.login)
 }
 
 func (r *Router) helloHandler(c *gin.Context) {
@@ -167,4 +171,46 @@ func (r *Router) updateTodo(c *gin.Context) {
 	}
 
 	r.repo.UpdateTodo(id, todo)
+}
+
+func (r *Router) login(c *gin.Context) {
+	createSessionHash := func(user string) [32]byte {
+		serial := time.Now().UnixNano()
+
+		return sha256.Sum256([]byte(fmt.Sprintf("%08x/%v", serial, user)))
+	}
+
+	req, err := ioutil.ReadAll(c.Request.Body)
+	if err != nil {
+		errorHandling(err, c)
+		return
+	}
+
+	body := make(map[string]string)
+	if err := json.Unmarshal(req, &body); err != nil {
+		errorHandling(err, c)
+		return
+	}
+
+	username := body["username"]
+	password := body["password"]
+	passHash := sha256.Sum256([]byte(password))
+	userinfo, status := r.repo.GetUserInfo(username)
+
+	if userinfo == nil {
+		c.JSON(status, map[string]string{})
+		return
+	}
+
+	if *userinfo.HashedPassword != passHash {
+		c.JSON(http.StatusUnauthorized, map[string]string{})
+	}
+
+	sessionHash := createSessionHash(username)
+	r.repo.SetSessionHash(username, sessionHash)
+	hashForCookie := fmt.Sprintf("%x", sessionHash)
+	c.SetCookie("Username", username, 60*60*24, "/", "", false, true)
+	c.SetCookie("SessionHash", hashForCookie, 60*60*24, "/", "", false, true)
+
+	c.JSON(http.StatusOK, map[string]string{})
 }

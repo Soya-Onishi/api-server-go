@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -16,6 +17,7 @@ import (
 
 type RepositoryMock struct {
 	todos []repository.TodoResponse
+	users []testUserInfo
 }
 
 func (r *RepositoryMock) GetAllTodos() []repository.TodoResponse {
@@ -62,6 +64,40 @@ func (r *RepositoryMock) UpdateTodo(id int, todo repository.TodoUpdater) int {
 	return http.StatusOK
 }
 
+func (r *RepositoryMock) GetUserInfo(username string) (*repository.UserInfo, int) {
+	var user repository.UserInfo
+	for _, u := range r.users {
+		if u.Username == username {
+			user.Username = u.Username
+			user.HashedPassword = &u.Password
+			return &user, http.StatusOK
+		}
+	}
+
+	return nil, http.StatusUnauthorized
+}
+
+func (r *RepositoryMock) GetSessionHash(username string) (*[32]byte, int) {
+	for _, u := range r.users {
+		if u.Username == username {
+			return u.SessionHash, http.StatusOK
+		}
+	}
+
+	return nil, http.StatusUnauthorized
+}
+
+func (r *RepositoryMock) SetSessionHash(username string, hash [32]byte) int {
+	for _, u := range r.users {
+		if u.Username == username {
+			u.SessionHash = &hash
+			return http.StatusOK
+		}
+	}
+
+	return http.StatusUnauthorized
+}
+
 var initDBData = []repository.TodoResponse{
 	{
 		Id:   1,
@@ -77,15 +113,48 @@ var initDBData = []repository.TodoResponse{
 	},
 }
 
+type testUserInfo struct {
+	Username    string
+	Password    [32]byte
+	SessionHash *[32]byte
+}
+
+var initUserInfo = []testUserInfo{
+	{
+		Username:    "Taro",
+		Password:    sha256.Sum256([]byte("Taro")),
+		SessionHash: nil,
+	},
+	{
+		Username:    "Hanako",
+		Password:    sha256.Sum256([]byte("Hanako")),
+		SessionHash: nil,
+	},
+	{
+		Username:    "Ryota",
+		Password:    sha256.Sum256([]byte("Ryota")),
+		SessionHash: nil,
+	},
+}
+
 func setupMock() *Router {
 	data := make([]repository.TodoResponse, len(initDBData))
+	users := make([]testUserInfo, len(initUserInfo))
+
 	for i, todo := range initDBData {
 		data[i].Id = todo.Id
 		data[i].Name = todo.Name
 	}
 
+	for i, user := range initUserInfo {
+		users[i].Username = user.Username
+		users[i].Password = user.Password
+		users[i].SessionHash = user.SessionHash
+	}
+
 	mock := RepositoryMock{
 		todos: data,
+		users: users,
 	}
 
 	return NewRouter(gin.Default(), &mock)
@@ -329,15 +398,15 @@ func TestDeleteTodo(t *testing.T) {
 	})
 }
 
+func runTest(f func(*httptest.Server)) {
+	router := setupMock()
+	ts := httptest.NewServer(router.engine)
+	defer ts.Close()
+
+	f(ts)
+}
+
 func TestUpdateTodo(t *testing.T) {
-	runTest := func(f func(*httptest.Server)) {
-		router := setupMock()
-		ts := httptest.NewServer(router.engine)
-		defer ts.Close()
-
-		f(ts)
-	}
-
 	update := func(url string, body []byte) (*http.Response, error) {
 		req, err := http.NewRequest(
 			http.MethodPatch,
@@ -424,6 +493,49 @@ func TestUpdateTodo(t *testing.T) {
 			for i, todo := range todos {
 				assert.Equal(t, initDBData[i].Name, todo["name"])
 			}
+		})
+	})
+}
+
+func TestLogin(t *testing.T) {
+	login := func(user string, passwd string, baseURL string) (*http.Response, error) {
+		message, err := json.Marshal(map[string]string{
+			"username": user,
+			"password": passwd,
+		})
+
+		if err != nil {
+			panic(err)
+		}
+
+		req, err := http.NewRequest(
+			http.MethodPost,
+			fmt.Sprintf("%v/login", baseURL),
+			bytes.NewReader(message),
+		)
+
+		if err != nil {
+			panic(err)
+		}
+
+		client := &http.Client{}
+		return client.Do(req)
+	}
+
+	t.Run("login valid username and password returns session hash as cookie", func(t *testing.T) {
+		runTest(func(ts *httptest.Server) {
+			resp, err := login("Taro", "Taro", ts.URL)
+			assert.Nil(t, err)
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+			cookieMap := make(map[string]string)
+			for _, cookie := range resp.Cookies() {
+				cookieMap[cookie.Name] = cookie.Value
+			}
+
+			t.Log(cookieMap["SessionHash"])
+			assert.Equal(t, "Taro", cookieMap["Username"])
+			assert.Equal(t, 64, len(cookieMap["SessionHash"]))
 		})
 	})
 }
